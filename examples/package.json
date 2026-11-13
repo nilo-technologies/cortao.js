@@ -1,0 +1,20 @@
+{
+	"name": "@cortao/examples",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "vite --host 127.0.0.1 --port 4791 --strictPort",
+		"build": "vite build",
+		"capture": "node scripts/capture.mjs",
+		"video": "node scripts/video.mjs"
+	},
+	"dependencies": {
+		"cortao.js": "workspace:*",
+		"three": "0.187.0",
+		"three-mesh-bvh": "0.9.17"
+	},
+	"devDependencies": {
+		"playwright": "1.64.1",
+		"vite": "7.1.5"
+	}
+}

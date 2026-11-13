@@ -1,0 +1,59 @@
+{
+	"name": "cortao.js",
+	"version": "0.1.0",
+	"description": "CORTAO ambient occlusion for three.js: a TSL node for WebGPURenderer and a WebGL2 pass",
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./dist/webgpu/CortaoNode.d.ts",
+			"import": "./dist/webgpu/CortaoNode.js"
+		},
+		"./webgl": {
+			"types": "./dist/webgl/CortaoPass.d.ts",
+			"import": "./dist/webgl/CortaoPass.js"
+		},
+		"./lookup-table": {
+			"types": "./dist/lookupTable.d.ts",
+			"import": "./dist/lookupTable.js"
+		}
+	},
+	"files": [
+		"dist",
+		"LICENSE-cortao"
+	],
+	"sideEffects": false,
+	"scripts": {
+		"build": "tsc -p tsconfig.build.json",
+		"typecheck": "tsc --noEmit -p tsconfig.json",
+		"test": "pnpm build && node test/lookup-table.mjs",
+		"dev": "pnpm build && pnpm --filter @cortao/examples dev",
+		"fetch-sponza": "node examples/scripts/fetch-sponza.mjs",
+		"lint": "biome lint src examples/src examples/scripts examples/vite.config.js test",
+		"format": "biome format src examples/src examples/scripts examples/vite.config.js test",
+		"check": "biome check src examples/src examples/scripts examples/vite.config.js test"
+	},
+	"peerDependencies": {
+		"three": ">=0.187.0"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.5.2",
+		"@types/three": "0.187.0",
+		"three": "0.187.0",
+		"typescript": "6.0.2"
+	},
+	"keywords": [
+		"three",
+		"threejs",
+		"webgpu",
+		"tsl",
+		"ambient-occlusion",
+		"ssao",
+		"cortao"
+	],
+	"license": "MIT",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/nilo-technologies/cortao.js.git"
+	},
+	"packageManager": "pnpm@12.16.1"
+}

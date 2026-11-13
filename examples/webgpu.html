@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>CORTAO WebGPU</title>
+		<style>
+			html,
+			body {
+				margin: 0;
+				height: 100%;
+				overflow: hidden;
+				background: #111;
+				color: #ddd;
+				font: 13px/1.4 ui-monospace, Menlo, monospace;
+			}
+			#bar {
+				position: fixed;
+				top: 8px;
+				left: 8px;
+				display: flex;
+				flex-wrap: wrap;
+				gap: 6px;
+				align-items: center;
+				padding: 6px 8px;
+				background: #000a;
+				border-radius: 6px;
+			}
+			button {
+				font: inherit;
+			}
+			button[aria-pressed='true'] {
+				outline: 2px solid #8cf;
+			}
+			canvas {
+				display: block;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="bar">
+			<button id="toggle" aria-pressed="true">AO on</button>
+			<button data-samples="4">4</button>
+			<button data-samples="8">8</button>
+			<button data-samples="16" aria-pressed="true">16</button>
+			<button data-samples="32">32</button>
+			<button id="view">AO only</button>
+			<span id="timing">GPU …</span>
+		</div>
+		<script type="module" src="./src/webgpu.js"></script>
+	</body>
+</html>

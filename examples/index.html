@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<title>CORTAO comparison</title>
+		<style>
+			body {
+				margin: 0;
+				background: #111;
+				color: #ddd;
+				font: 13px/1.4 ui-monospace, Menlo, monospace;
+			}
+			#bar {
+				display: flex;
+				flex-wrap: wrap;
+				gap: 8px;
+				align-items: center;
+				padding: 8px 12px;
+			}
+			select,
+			button {
+				font: inherit;
+			}
+			canvas {
+				display: block;
+				width: 100%;
+				height: auto;
+			}
+			#status {
+				opacity: 0.8;
+			}
+		</style>
+	</head>
+	<body>
+		<div id="bar">
+			<select id="scene">
+				<option value="sponza">Sponza</option>
+				<option value="simple">Simple scene</option>
+			</select>
+			<select id="view">
+				<option value="cortao">CORTAO filtered</option>
+				<option value="cortaoRaw">CORTAO unfiltered</option>
+				<option value="cortaoTemporal">CORTAO filtered, 32 frames</option>
+				<option value="gtao">three.js GTAOPass denoised</option>
+				<option value="gtaoRaw">three.js GTAOPass unfiltered</option>
+				<option value="reference">Ray-traced reference</option>
+				<option value="normal">Normals</option>
+			</select>
+			<select id="samples">
+				<option>4</option>
+				<option>8</option>
+				<option selected>16</option>
+				<option>32</option>
+			</select>
+			<button id="capture">Capture comparison set</button>
+			<span id="status">loading</span>
+		</div>
+		<canvas id="canvas" width="1280" height="720"></canvas>
+		<script type="module" src="./src/compare.js"></script>
+	</body>
+</html>
