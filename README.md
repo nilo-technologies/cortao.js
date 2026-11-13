@@ -25,12 +25,14 @@ const scenePass = pass(scene, camera);
 const cortao = new CortaoNode(scenePass.getTextureNode('depth'), () => camera);
 cortao.radius.value = 1; // world units
 cortao.sampleCount = 16; // 4, 8, 16 or 32; a change rebuilds one shader
+cortao.resolutionScale = 0.5; // of the depth texture's size; 0.5 draws a quarter of the pixels
+cortao.temporalBlend.value = 0.1; // share of each new frame in the history; 1 keeps none
 
 const pipeline = new THREE.RenderPipeline(renderer);
 pipeline.outputNode = vec4(scenePass.getTextureNode().rgb.mul(cortao.getTextureNode().r), 1);
 ```
 
-`cortao.enabled = false` skips all three passes. Samples and radius can change at run time, so quality can follow a frame-time budget.
+`cortao.enabled = false` skips all its passes. Samples and radius can change at run time, so quality can follow a frame-time budget.
 
 ## WebGLRenderer
 
@@ -65,7 +67,8 @@ The comparison page now times passes with `EXT_disjoint_timer_query_webgl2` when
 
 - Normals are rebuilt from depth in the WebGPU node; the WebGL pass takes a normal texture.
 - The packed depth and normal buffer has no mip chain.
-- No temporal filter: feed the result to your TAA, as the reference intends.
+- The WebGPU node accumulates frames itself: it reprojects last frame's occlusion by depth and drops it where the depth does not match, so its noise, which changes each frame, averages out while the camera moves. The reference leaves this to the host's TAA. Objects that move while the camera stays still keep a short trail of their old occlusion. The WebGL pass has no temporal filter.
+- The WebGPU node draws at half the depth texture's size by default (`resolutionScale`). At 2880×1800 on an Apple M1 Pro, 16 samples cost about 20 ms per frame at full size and about 5 to 9 ms at half, on the wall clock.
 - The lookup table is generated at start-up (a few milliseconds) instead of loaded from a file; `pnpm test` checks it equals the reference's table bit for bit.
 
 ## Examples

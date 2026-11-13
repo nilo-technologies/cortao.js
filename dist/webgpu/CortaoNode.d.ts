@@ -33,14 +33,33 @@ export declare class CortaoNode extends THREE.TempNode<'float'> {
     frames: number;
     /** The occlusion radius, in world units. */
     readonly radius: THREE.UniformNode<"float", number>;
+    /** The occlusion's size as a fraction of the depth texture's; 0.5 is a quarter of the pixels. */
+    resolutionScale: number;
+    /**
+     * How much of each new frame goes into the history, 1 for none kept. Lower is
+     * smoother and slower to follow moving objects; history the camera moved away
+     * from, by depth, is dropped.
+     */
+    readonly temporalBlend: THREE.UniformNode<"float", number>;
     private readonly packedTarget;
     private readonly occlusionTarget;
     private readonly filteredTarget;
+    /**
+     * Accumulated occlusion in red and its linear depth in green, in turns: each
+     * frame writes one from the other, and the texture node reads the one written.
+     */
+    private readonly resolvedTargets;
     private readonly lookupTable;
     private readonly packMaterial;
     private readonly occlusionMaterial;
     private readonly filterMaterial;
+    /** One per resolved target it writes, reading the other. */
+    private readonly temporalMaterials;
     private readonly textureNode;
+    /** One quad per pass: a quad whose material changes every draw is set up again every draw. */
+    private readonly quads;
+    /** Which resolved target this frame writes. */
+    private parity;
     private readonly projection;
     private readonly projectionInverse;
     private readonly near;
@@ -49,6 +68,13 @@ export declare class CortaoNode extends THREE.TempNode<'float'> {
     private readonly unprojectParams;
     private readonly normalBias;
     private readonly maxApparentCircleRadiusCoefficient;
+    /** Shifts the per-pixel noise every frame, so the history averages different samples. */
+    private readonly noiseOffset;
+    private readonly cameraWorld;
+    private readonly previousViewProjection;
+    /** 0 when the history is from another size or there is none yet. */
+    private readonly historyValid;
+    private readonly targetSize;
     private builtSampleCount;
     private buildOcclusion;
     private sharedContext;
@@ -57,7 +83,7 @@ export declare class CortaoNode extends THREE.TempNode<'float'> {
      * @param camera Read every frame, so a pass that changes cameras is followed.
      */
     constructor(depthNode: TextureNode, camera: () => THREE.Camera);
-    /** The filtered occlusion. */
+    /** The filtered, accumulated occlusion in red. */
     getTextureNode(): TextureNode;
     private viewPosition;
     /** The view-space normal rebuilt from depth; the scene pass has no normal buffer. */
@@ -68,6 +94,12 @@ export declare class CortaoNode extends THREE.TempNode<'float'> {
     private occlusion;
     /** The reference's sparse filter: neighbors weighted by how well they fit the pixel's depth plane and normal. */
     private filter;
+    /**
+     * The filtered occlusion blended into last frame's, found where this pixel's
+     * surface was then. The history is dropped where its depth does not match
+     * that place, off screen, and on the background.
+     */
+    private temporal;
     private setSize;
     updateBefore(frame: NodeFrame): undefined;
     setup(builder: NodeBuilder): TextureNode;

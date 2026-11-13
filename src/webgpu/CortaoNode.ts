@@ -18,7 +18,9 @@
 //   normal in one 32-bit value, but no mip chain; every sample reads the
 //   full-size texture.
 // - Per-pixel random numbers come from TSL's noise instead of the integer hash.
-// - There is no temporal filter; feed the result to your own TAA to remove grain.
+// - It draws at a fraction of the depth texture's size (`resolutionScale`) and
+//   accumulates frames with a reprojected history (`temporalBlend`), so the
+//   per-pixel noise, which changes every frame, averages out as the camera moves.
 
 import * as TSL from 'three/tsl';
 import type { Node, NodeBuilder, NodeFrame, TextureNode } from 'three/webgpu';
@@ -70,7 +72,6 @@ type RendererState = ReturnType<typeof THREE.RendererUtils.resetRendererState>;
 /** A node builder's shared context, which three's declarations leave out. */
 type SharedContext = Record<string, unknown>;
 
-const quad = new THREE.QuadMesh(new THREE.NodeMaterial());
 const drawingBufferSize = new THREE.Vector2();
 // Undefined until the first draw, as three's own effects pass it.
 let rendererState = undefined as unknown as RendererState;
@@ -148,6 +149,14 @@ export class CortaoNode extends THREE.TempNode<'float'> {
 	public frames = 0;
 	/** The occlusion radius, in world units. */
 	public readonly radius = TSL.uniform(1);
+	/** The occlusion's size as a fraction of the depth texture's; 0.5 is a quarter of the pixels. */
+	public resolutionScale = 0.5;
+	/**
+	 * How much of each new frame goes into the history, 1 for none kept. Lower is
+	 * smoother and slower to follow moving objects; history the camera moved away
+	 * from, by depth, is dropped.
+	 */
+	public readonly temporalBlend = TSL.uniform(0.1);
 
 	private readonly packedTarget = new THREE.RenderTarget(1, 1, {
 		depthBuffer: false,
@@ -164,12 +173,33 @@ export class CortaoNode extends THREE.TempNode<'float'> {
 	});
 	private readonly filteredTarget = new THREE.RenderTarget(1, 1, {
 		depthBuffer: false,
+		minFilter: THREE.NearestFilter,
+		magFilter: THREE.NearestFilter,
 	});
+	/**
+	 * Accumulated occlusion in red and its linear depth in green, in turns: each
+	 * frame writes one from the other, and the texture node reads the one written.
+	 */
+	private readonly resolvedTargets = [0, 1].map(
+		() =>
+			new THREE.RenderTarget(1, 1, {
+				depthBuffer: false,
+				format: THREE.RGFormat,
+				// Half floats filter everywhere; 32-bit ones need an optional WebGPU feature.
+				type: THREE.HalfFloatType,
+			}),
+	);
 	private readonly lookupTable = createOccluderLookupTexture();
 	private readonly packMaterial = new THREE.NodeMaterial();
 	private readonly occlusionMaterial = new THREE.NodeMaterial();
 	private readonly filterMaterial = new THREE.NodeMaterial();
+	/** One per resolved target it writes, reading the other. */
+	private readonly temporalMaterials = [new THREE.NodeMaterial(), new THREE.NodeMaterial()];
 	private readonly textureNode: TextureNode;
+	/** One quad per pass: a quad whose material changes every draw is set up again every draw. */
+	private readonly quads = new Map<THREE.NodeMaterial, THREE.QuadMesh>();
+	/** Which resolved target this frame writes. */
+	private parity = 0;
 
 	private readonly projection = TSL.uniform(new THREE.Matrix4());
 	private readonly projectionInverse = TSL.uniform(new THREE.Matrix4());
@@ -179,6 +209,13 @@ export class CortaoNode extends THREE.TempNode<'float'> {
 	private readonly unprojectParams = TSL.uniform(new THREE.Vector4());
 	private readonly normalBias = TSL.uniform(0);
 	private readonly maxApparentCircleRadiusCoefficient = TSL.uniform(0);
+	/** Shifts the per-pixel noise every frame, so the history averages different samples. */
+	private readonly noiseOffset = TSL.uniform(new THREE.Vector2());
+	private readonly cameraWorld = TSL.uniform(new THREE.Matrix4());
+	private readonly previousViewProjection = TSL.uniform(new THREE.Matrix4());
+	/** 0 when the history is from another size or there is none yet. */
+	private readonly historyValid = TSL.uniform(0);
+	private readonly targetSize = new THREE.Vector2();
 
 	private builtSampleCount = -1;
 	private buildOcclusion: (() => Node) | null = null;
@@ -197,10 +234,16 @@ export class CortaoNode extends THREE.TempNode<'float'> {
 		this.packMaterial.name = 'CORTAO.pack';
 		this.occlusionMaterial.name = 'CORTAO.occlusion';
 		this.filterMaterial.name = 'CORTAO.filter';
-		this.textureNode = TSL.passTexture(this as unknown as THREE.PassNode, this.filteredTarget.texture);
+		for (const material of this.temporalMaterials) material.name = 'CORTAO.temporal';
+		for (const material of [this.packMaterial, this.occlusionMaterial, this.filterMaterial, ...this.temporalMaterials]) {
+			const quad = new THREE.QuadMesh(material);
+			quad.name = material.name;
+			this.quads.set(material, quad);
+		}
+		this.textureNode = TSL.passTexture(this as unknown as THREE.PassNode, this.resolvedTargets[0].texture);
 	}
 
-	/** The filtered occlusion. */
+	/** The filtered, accumulated occlusion in red. */
 	public getTextureNode(): TextureNode {
 		return this.textureNode;
 	}
@@ -225,7 +268,7 @@ export class CortaoNode extends THREE.TempNode<'float'> {
 		const uv = TSL.uv();
 		const depth = TSL.projectionDepth(this.depthNode.sample(uv).r, this.near, this.far).toConst();
 		const position = TSL.getViewPosition(uv, depth, this.projectionInverse);
-		const dither = TSL.vec2(TSL.rand(uv), TSL.rand(uv.add(TSL.vec2(0.4321, 0.8765))));
+		const dither = TSL.vec2(TSL.rand(uv.add(this.noiseOffset)), TSL.rand(uv.add(this.noiseOffset).add(TSL.vec2(0.4321, 0.8765))));
 		const packed = packDepthAndNormal(position.z.negate(), this.normalFromDepth(uv), dither);
 		return TSL.vec4(TSL.isBackgroundDepth(depth).select(0, packed), 0, 0, 1);
 	}
@@ -242,14 +285,15 @@ export class CortaoNode extends THREE.TempNode<'float'> {
 		// Full precision for the pixel itself; only its neighbors use the packed normal.
 		const normal = this.normalFromDepth(uv).toConst();
 
-		const rotation = TSL.interleavedGradientNoise(TSL.screenCoordinate)
+		const noiseUv = uv.add(this.noiseOffset).toConst();
+		const rotation = TSL.interleavedGradientNoise(TSL.screenCoordinate.xy.add(this.noiseOffset.mul(5.588238)))
 			.mul(Math.PI * 2)
 			.toConst();
-		const offsetDither = TSL.rand(uv).toConst();
-		const tangentRotation = TSL.rand(uv.add(TSL.vec2(0.1234, 0.5678)))
+		const offsetDither = TSL.rand(noiseUv).toConst();
+		const tangentRotation = TSL.rand(noiseUv.add(TSL.vec2(0.1234, 0.5678)))
 			.mul(Math.PI * 2)
 			.toConst();
-		const flip = TSL.rand(uv.add(TSL.vec2(0.77, 0.31))).lessThan(0.5);
+		const flip = TSL.rand(noiseUv.add(TSL.vec2(0.77, 0.31))).lessThan(0.5);
 
 		// The world radius, limited to a fraction of the screen height.
 		const clampedRadius = TSL.min(this.radius, linearDepth.mul(this.maxApparentCircleRadiusCoefficient)).toConst();
@@ -397,10 +441,43 @@ export class CortaoNode extends THREE.TempNode<'float'> {
 		return TSL.vec4(center.lessThanEqual(0).select(1, sum.div(weightSum)));
 	}
 
-	private setSize(width: number, height: number): void {
-		this.packedTarget.setSize(width, height);
-		this.occlusionTarget.setSize(width, height);
-		this.filteredTarget.setSize(width, height);
+	/**
+	 * The filtered occlusion blended into last frame's, found where this pixel's
+	 * surface was then. The history is dropped where its depth does not match
+	 * that place, off screen, and on the background.
+	 */
+	private temporal(history: TextureNode): Node {
+		const packed = TSL.texture(this.packedTarget.texture);
+		const filtered = TSL.texture(this.filteredTarget.texture);
+		const uv = TSL.uv();
+		const size = TSL.vec2(TSL.textureSize(packed) as unknown as Node<'ivec2'>).toConst();
+		const pixel = TSL.ivec2(uv.mul(size)).toConst();
+		const linearDepth = packed.load(pixel).r.toConst();
+		const current = filtered.load(pixel).r.toConst();
+
+		const world = this.cameraWorld.mul(TSL.vec4(this.viewPosition(uv, linearDepth), 1));
+		const clip = this.previousViewProjection.mul(world).toConst();
+		const previousUv = TSL.getScreenPositionFromClip(clip).toConst();
+		const onScreen = previousUv.x
+			.greaterThanEqual(0)
+			.and(previousUv.x.lessThan(1))
+			.and(previousUv.y.greaterThanEqual(0))
+			.and(previousUv.y.lessThan(1));
+		const previous = history.load(TSL.ivec2(previousUv.clamp(0, 0.99999).mul(size))).toConst();
+		// For a perspective camera, clip w is the linear depth that place had.
+		const depthMatches = previous.g.sub(clip.w).abs().lessThan(clip.w.mul(0.05));
+		const keep = onScreen.and(depthMatches).and(this.historyValid.greaterThan(0.5)).and(previous.g.greaterThan(0));
+		const blend = keep.select(this.temporalBlend, 1);
+		const occlusion = TSL.mix(previous.r, current, blend);
+		return TSL.vec4(linearDepth.lessThanEqual(0).select(1, occlusion), linearDepth, 0, 1);
+	}
+
+	private setSize(width: number, height: number): boolean {
+		if (this.targetSize.x === width && this.targetSize.y === height) return false;
+		this.targetSize.set(width, height);
+		for (const target of [this.packedTarget, this.occlusionTarget, this.filteredTarget, ...this.resolvedTargets])
+			target.setSize(width, height);
+		return true;
 	}
 
 	public override updateBefore(frame: NodeFrame): undefined {
@@ -409,8 +486,13 @@ export class CortaoNode extends THREE.TempNode<'float'> {
 		const camera = this.camera();
 		if (!this.enabled || !renderer || !this.buildOcclusion || !(camera instanceof THREE.PerspectiveCamera)) return undefined;
 
-		const size = renderer.getDrawingBufferSize(drawingBufferSize);
-		this.setSize(size.width, size.height);
+		// The scene's own size, which may be below the drawing buffer's (dynamic resolution).
+		const depth = this.depthNode.value.image as { width?: number; height?: number } | undefined;
+		const full =
+			depth?.width && depth.height ? drawingBufferSize.set(depth.width, depth.height) : renderer.getDrawingBufferSize(drawingBufferSize);
+		const scale = THREE.MathUtils.clamp(this.resolutionScale, 0.25, 1);
+		const size = { width: Math.max(1, Math.round(full.x * scale)), height: Math.max(1, Math.round(full.y * scale)) };
+		if (this.setSize(size.width, size.height)) this.historyValid.value = 0;
 
 		// The reference's populateMainPassParameters.
 		const inverse = camera.projectionMatrixInverse.elements;
@@ -423,6 +505,12 @@ export class CortaoNode extends THREE.TempNode<'float'> {
 		const maxApparentCircleRadius = inverse[5] * DEFAULTS.maxScreenspaceRadiusHeightRatio * 2;
 		this.maxApparentCircleRadiusCoefficient.value = maxApparentCircleRadius / Math.hypot(maxApparentCircleRadius, 1);
 
+		// Each frame samples other directions; the history averages them.
+		const step = this.frames % 64;
+		this.noiseOffset.value.set((step * 0.618034) % 1, (step * 0.754878) % 1);
+		camera.updateMatrixWorld();
+		this.cameraWorld.value.copy(camera.matrixWorld);
+
 		if (this.sampleCount !== this.builtSampleCount) {
 			this.builtSampleCount = this.sampleCount;
 			this.occlusionMaterial.fragmentNode = this.buildOcclusion();
@@ -431,17 +519,21 @@ export class CortaoNode extends THREE.TempNode<'float'> {
 
 		rendererState = THREE.RendererUtils.resetRendererState(renderer, rendererState);
 		renderer.setClearColor(0xffffff, 1);
+		this.parity = 1 - this.parity;
+		const resolved = this.resolvedTargets[this.parity];
 		for (const [material, target] of [
 			[this.packMaterial, this.packedTarget],
 			[this.occlusionMaterial, this.occlusionTarget],
 			[this.filterMaterial, this.filteredTarget],
+			[this.temporalMaterials[this.parity], resolved],
 		] as const) {
-			quad.material = material;
-			quad.name = material.name;
 			renderer.setRenderTarget(target);
-			quad.render(renderer);
+			this.quads.get(material)?.render(renderer);
 		}
 		THREE.RendererUtils.restoreRendererState(renderer, rendererState);
+		this.textureNode.value = resolved.texture;
+		this.previousViewProjection.value.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+		this.historyValid.value = 1;
 		return undefined;
 	}
 
@@ -459,6 +551,12 @@ export class CortaoNode extends THREE.TempNode<'float'> {
 		this.filterMaterial.contextNode = shared();
 		this.filterMaterial.fragmentNode = TSL.Fn(() => this.filter())();
 		this.filterMaterial.needsUpdate = true;
+		this.temporalMaterials.forEach((material, index) => {
+			const history = TSL.texture(this.resolvedTargets[1 - index].texture);
+			material.contextNode = shared();
+			material.fragmentNode = TSL.Fn(() => this.temporal(history))();
+			material.needsUpdate = true;
+		});
 		return this.textureNode;
 	}
 
@@ -467,9 +565,11 @@ export class CortaoNode extends THREE.TempNode<'float'> {
 		this.packedTarget.dispose();
 		this.occlusionTarget.dispose();
 		this.filteredTarget.dispose();
+		for (const target of this.resolvedTargets) target.dispose();
 		this.lookupTable.dispose();
 		this.packMaterial.dispose();
 		this.occlusionMaterial.dispose();
 		this.filterMaterial.dispose();
+		for (const material of this.temporalMaterials) material.dispose();
 	}
 }

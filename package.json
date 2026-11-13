@@ -1,6 +1,6 @@
 {
 	"name": "cortao.js",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"description": "CORTAO ambient occlusion for three.js: a TSL node for WebGPURenderer and a WebGL2 pass",
 	"type": "module",
 	"exports": {
