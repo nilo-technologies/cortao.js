@@ -1,0 +1,86 @@
+examples/scripts/fetch-sponza.mjs
+  s_928c6067b59dda::t_987929f73df6e0 1-29
+README.md
+  s_928c6067b59dda::t_adb00c2c97bf24 1-85
+AGENTS.md
+  s_928c6067b59dda::t_ff673fd800fab8 1-33
+examples/webgpu.html
+  s_928c6067b59dda::t_0c83e384c9b805 1-52
+examples/vite.config.js
+  s_928c6067b59dda::t_4e4407ea9528d0 1-43
+test/lookup-table.mjs
+  s_928c6067b59dda::t_1e67463f3bdbc9 1-20
+src/lookupTable.ts
+  s_928c6067b59dda::t_d38d41e2dba240 1-81
+CHANGELOG.md
+  s_928c6067b59dda::t_3a0dd7ad4b4afd 1-7
+examples/src/webgpu.js
+  s_928c6067b59dda::t_59552345278c4e 1-99,101
+  s_928c6067b59dda::t_555d81a5debe22 100,102-110
+.gitignore
+  s_928c6067b59dda::t_7a6d3642b09044 1-7
+CLAUDE.md
+  s_928c6067b59dda::t_b53a76fccda5da 1
+LICENSE
+  s_928c6067b59dda::t_d67714ef53941d 1-21
+LICENSE-cortao
+  s_928c6067b59dda::t_02dd81f15a8c6c 1-25
+biome.json
+  s_928c6067b59dda::t_4e89eaba215289 1-27
+dist/lookupTable.d.ts
+  s_928c6067b59dda::t_575aa44da369b3 1-27
+dist/lookupTable.js
+  s_928c6067b59dda::t_409c3b2bbb8065 1-62
+dist/webgl/CortaoPass.d.ts
+  s_928c6067b59dda::t_91080df936d859 1-91
+dist/webgl/CortaoPass.js
+  s_928c6067b59dda::t_fea75ced94b446 1-706
+dist/webgpu/CortaoNode.d.ts
+  s_928c6067b59dda::t_cd41940ff68d40 1-75
+dist/webgpu/CortaoNode.js
+  s_928c6067b59dda::t_3983be002930ba 1-410
+examples/index.html
+  s_928c6067b59dda::t_d542e977c323e7 1-62
+examples/package.json
+  s_928c6067b59dda::t_9b6dee5c87610b 1-20
+examples/scripts/capture.mjs
+  s_928c6067b59dda::t_04e43837c753ec 1-52
+examples/scripts/video.mjs
+  s_928c6067b59dda::t_8520558d3c9a88 1-63
+examples/src/compare.js
+  s_928c6067b59dda::t_477ff5a2c39835 1-592
+examples/src/reference.js
+  s_928c6067b59dda::t_bfb064021d0878 1-175
+examples/src/scenes.js
+  s_928c6067b59dda::t_555d8cad2fa84e 1-83
+package.json
+  s_928c6067b59dda::t_65471c94ac293b 1-59
+pnpm-lock.yaml
+  s_928c6067b59dda::t_3be9f48a8a3a00 1-1020
+pnpm-workspace.yaml
+  s_928c6067b59dda::t_e1f48d298d5e57 1-2
+src/webgl/CortaoPass.js
+  s_928c6067b59dda::t_e2dc81b646ad59 1-741
+src/webgpu/CortaoNode.ts
+  s_928c6067b59dda::t_939eb8ad61b5a5 1-475
+tsconfig.build.json
+  s_928c6067b59dda::t_e1cc38b2d9e56f 1-4
+tsconfig.json
+  s_928c6067b59dda::t_5214c2c517aae4 1-17
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "604a4e9d40906c3d5b6964184785e8b9e18d78a4",
+  "prompts": {},
+  "sessions": {
+    "s_928c6067b59dda": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "1b0d678f-13f8-4489-920b-5c23ad667d30",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rafael Guilherme <rafael.guilherme@nilo.io>"
+    }
+  }
+}
