@@ -1,0 +1,29 @@
+CHANGELOG.md
+  s_ee2b8dcdcae4ff::t_2a054ca9c9f71e 3-8
+README.md
+  s_ee2b8dcdcae4ff::t_8c99440e689147 28-29,35,70-71
+dist/webgpu/CortaoNode.d.ts
+  s_ee2b8dcdcae4ff::t_2e7b9319df01b4 36-43,47-51,56-57,59-62,71-77,86,97-102
+dist/webgpu/CortaoNode.js
+  s_ee2b8dcdcae4ff::t_1a8608e76222b7 21-23,134-141,157-158,160-169,174-175,177-180,189-195,211-218,220,239,253-254,257-258,261,383-411,413-418,426-432,443-447,455-456,461,464,467-469,486-491,499-500,505-506
+package.json
+  s_ee2b8dcdcae4ff::t_d6e0217013e01d 3
+src/webgpu/CortaoNode.ts
+  s_ee2b8dcdcae4ff::t_3e3628810f677b 21-23,152-159,176-177,179-191,196-197,199-202,212-218,237-243,246,271,288-289,292-293,296,444-480,489-495,508-513,522-523,528,531,534-536,554-559,568,573
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.7.5",
+  "base_commit_sha": "b8254b202c7d748f0260ff36831cebc5f44fd34a",
+  "prompts": {},
+  "sessions": {
+    "s_ee2b8dcdcae4ff": {
+      "agent_id": {
+        "tool": "claude",
+        "id": "3d6b1153-9016-4b36-a830-426b838c1829",
+        "model": "claude-opus-5-5"
+      },
+      "human_author": "Rafael Guilherme <rafael.guilherme@nilo.io>"
+    }
+  }
+}
